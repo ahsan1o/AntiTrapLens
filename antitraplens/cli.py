@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="AntiTrapLens: Scan websites for dark patterns.")
     parser.add_argument("url", help="The website URL to scan.")
     parser.add_argument("--output", default="reports/scan_result.json", help="Output JSON file path.")
-    parser.add_argument("--report-format", choices=['json', 'markdown', 'console'], default='json', help="Report format.")
+    parser.add_argument("--report-format", choices=['json', 'markdown', 'console', 'html'], default='json', help="Report format.")
     parser.add_argument("--report-file", help="Output file for markdown report (if format is markdown).")
     parser.add_argument("--timeout", type=int, default=30000, help="Timeout in ms for page load.")
     parser.add_argument("--depth", type=int, default=1, help="Crawling depth (1 = homepage only, 2+ = follow links).")
@@ -60,6 +60,9 @@ def main():
     elif args.report_format == 'markdown':
         report_file = args.report_file or args.output.replace('.json', '.md')
         reporter.generate_markdown_report(output_data, report_file)
+    elif args.report_format == 'html':
+        report_file = args.report_file or args.output.replace('.json', '.html')
+        reporter.generate_html_report(output_data, report_file)
     elif args.report_format == 'console':
         reporter.generate_console_report(output_data)
 

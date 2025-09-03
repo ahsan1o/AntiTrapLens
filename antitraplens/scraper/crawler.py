@@ -8,6 +8,8 @@ import logging
 from typing import Dict, List, Any
 from playwright.sync_api import sync_playwright, Page, Browser
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from collections import deque
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +22,15 @@ class WebCrawler:
 
     def __enter__(self):
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
+        self.browser = self.playwright.chromium.launch(headless=self.headless, args=[
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ])
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -28,13 +38,25 @@ class WebCrawler:
             self.browser.close()
         self.playwright.stop()
 
-    def crawl_page(self, url: str) -> Dict[str, Any]:
+    def crawl_page(self, url: str, timeout: int = 60000) -> Dict[str, Any]:
         """
-        Crawl a single page and extract relevant data.
+        Crawl the given URL and extract data, with anti-bot measures.
         """
         try:
-            page = self.browser.new_page()
-            page.goto(url, timeout=self.timeout)
+            context = self.browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                viewport={'width': 1280, 'height': 720}
+            )
+            page = context.new_page()
+            page.goto(url, timeout=timeout, wait_until='networkidle')
+
+            # Wait for potential Cloudflare challenge
+            page.wait_for_timeout(5000)  # Wait 5 seconds for challenges
+
+            # Check if it's a challenge page
+            if 'challenge' in page.url.lower() or 'just a moment' in page.title().lower():
+                logger.info("Detected challenge page, waiting longer...")
+                page.wait_for_timeout(10000)  # Wait additional 10 seconds
 
             # Extract basic HTML
             html = page.content()
@@ -96,6 +118,18 @@ class WebCrawler:
                     'inputs': inputs
                 })
 
+            # Extract links
+            link_elements = page.query_selector_all('a[href]')
+            links = []
+            for link in link_elements:
+                try:
+                    href = link.get_attribute('href')
+                    if href:
+                        full_url = urljoin(url, href)
+                        links.append(full_url)
+                except:
+                    pass
+
             # Basic JS event listeners (via page evaluation) - REMOVED due to compatibility
             js_events = []  # Placeholder, can add back with alternative method
 
@@ -109,10 +143,10 @@ class WebCrawler:
                 'popups': popups,
                 'forms': forms,
                 'js_events': js_events,
+                'links': links,
                 'timestamp': str(page.evaluate("Date.now()"))
             }
 
-            page.close()
             return data
 
         except Exception as e:
@@ -123,9 +157,6 @@ class WebCrawler:
         """
         Crawl the website starting from start_url up to max_depth, collecting data from each page.
         """
-        from urllib.parse import urljoin, urlparse
-        from collections import deque
-
         base_domain = urlparse(start_url).netloc
         visited = set()
         queue = deque([(start_url, 0)])  # (url, depth)
@@ -140,19 +171,76 @@ class WebCrawler:
             print(f"Crawling: {current_url} (depth {depth})")
             page_data = self.crawl_page(current_url)
             if 'error' not in page_data:
-                results.append(page_data)
+                # Categorize website and add to data
+                data = page_data
+                data['category'] = self.categorize_website(data)
+                data['url'] = current_url
+                data['status'] = 'success'
+                results.append(data)
 
                 if depth < max_depth:
-                    # Extract internal links
-                    soup = BeautifulSoup(page_data.get('html', ''), 'lxml')
-                    links = soup.find_all('a', href=True)
-                    for link in links:
-                        href = link['href']
+                    # Extract internal links from data
+                    links = data.get('links', [])
+                    internal_links = []
+                    for href in links:
                         full_url = urljoin(current_url, href)
                         if urlparse(full_url).netloc == base_domain and full_url not in visited:
-                            queue.append((full_url, depth + 1))
+                            internal_links.append(full_url)
+                    print(f"Found {len(internal_links)} internal links: {internal_links[:5]}")  # Debug
+                    for link in internal_links[:10]:  # Limit to 10 per page to avoid explosion
+                        queue.append((link, depth + 1))
+            print(f"Queue size: {len(queue)}, Results: {len(results)}")
 
         return results
+
+    def categorize_website(self, page_data: Dict[str, Any]) -> str:
+        """
+        Categorize the website based on content analysis.
+        """
+        title = page_data.get('title', '').lower()
+        meta_desc = ''
+        for meta in page_data.get('meta_tags', []):
+            if meta.get('name') == 'description':
+                meta_desc = meta.get('content', '').lower()
+                break
+        html = page_data.get('html', '').lower()
+        links = ' '.join(page_data.get('links', [])).lower()  # Include links for keywords
+
+        text = f"{title} {meta_desc} {html} {links}"
+
+        categories = {
+            'ecommerce': ['shop', 'buy', 'cart', 'product', 'store', 'price'],
+            'adult': ['adult', 'porn', 'sex', 'xxx', 'jav', '18+', 'nude', 'genre/jav'],
+            'streaming': ['watch', 'movie', 'series', 'stream', 'video', 'tv', 'download', 'hd'],
+            'news': ['news', 'article', 'blog', 'politics', 'sports'],
+            'social': ['social', 'community', 'forum', 'chat'],
+            'educational': ['learn', 'course', 'tutorial', 'education'],
+            'gaming': ['game', 'play', 'gaming', 'esports'],
+        }
+
+        scores = {}
+        for cat, keywords in categories.items():
+            score = 0
+            for kw in keywords:
+                if kw in text:
+                    score += 1
+            scores[cat] = score
+
+        # Debug: print scores
+        print(f"Debug - Title: {title}")
+        print(f"Debug - Meta: {meta_desc}")
+        print(f"Debug - Links sample: {links[:200]}")
+        print(f"Debug - Scores: {scores}")
+        print(f"Debug - Best: {best_cat} with {scores[best_cat]}")
+
+        # Special check for adult content
+        if any('jav' in link for link in page_data.get('links', [])) or '18+' in text or 'adult' in text:
+            return 'Adult'
+
+        best_cat = max(scores, key=scores.get)
+        if scores[best_cat] > 0:
+            return best_cat.capitalize()
+        return 'General'
 
 def save_to_json(data: Dict[str, Any], filename: str):
     """

@@ -6,9 +6,11 @@ An advanced OSINT + UX watchdog that scans websites for manipulative design patt
 - **Comprehensive Crawling**: Headless browser extraction of HTML, CSS, JS, popups, forms, and more.
 - **Depth Crawling**: Follow internal links up to specified depth.
 - **AI-Powered Detection**: 14+ rule-based heuristics + NLP analysis for misleading text.
+- **Website Categorization**: Automatically detects site type (e.g., Ecommerce, Adult, Streaming).
 - **Scoring System**: Rate websites 0-100 with grades (A-F) based on darkness level.
-- **Multi-Format Reports**: JSON, Markdown, or console output.
-- **Extensive Rules**: Detects pre-ticked checkboxes, hidden costs, fake reviews, subscription traps, accessibility issues, and more.
+- **Interactive Reports**: HTML reports with collapsible sections, charts, and modern UI.
+- **Multi-Format Reports**: JSON, Markdown, HTML, or console output.
+- **Anti-Bot Bypass**: Handles Cloudflare and similar protections.
 
 ## Installation
 1. Clone: `git clone https://github.com/ahsan1o/AntiTrapLens.git`
@@ -22,23 +24,27 @@ An advanced OSINT + UX watchdog that scans websites for manipulative design patt
 # Basic scan
 python main.py https://example.com/
 
-# Depth crawl with markdown report
-python main.py https://example.com/ --depth 2 --report-format markdown --report-file report.md
+# Depth crawl with interactive HTML report
+python main.py https://example.com/ --depth 2 --report-format html --report-file report.html
 
 # Console report
 python main.py https://example.com/ --report-format console
 ```
 
 ## Project Structure
-- `antitraplens/`
-  - `cli.py` - CLI with options
-  - `scraper/` - Web crawling logic
-  - `detector/` - 14+ detection rules + NLP + scoring
-  - `reporter/` - JSON/Markdown/console reports
-- `tests/` - Unit tests
-- `docs/` - Documentation
-- `scripts/` - Setup scripts
-- `reports/` - Output files
+```
+antitraplens/
+├── cli.py              # CLI with options
+├── scraper/            # Web crawling logic
+│   ├── __init__.py
+│   └── crawler.py      # Crawler with anti-bot, categorization
+├── detector/           # Detection rules + NLP + scoring
+│   ├── __init__.py
+│   └── rules.py        # 14+ rules, scoring
+└── reporter/           # Report generation
+    ├── __init__.py
+    └── generator.py    # JSON/Markdown/HTML/console reports
+```
 
 ## Detection Rules
 - Pre-ticked checkboxes
@@ -65,3 +71,5 @@ python main.py https://example.com/ --report-format console
 
 ## Contributing
 Open issues/PRs. Add more rules or improve NLP!
+
+Developed by **Ahsan Malik** | [GitHub: ahsan1o](https://github.com/ahsan1o)
