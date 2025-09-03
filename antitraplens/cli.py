@@ -18,10 +18,11 @@ from .detector.engine import DarkPatternDetector
 from .analyzer.cookie_analyzer import CookieAnalyzer
 from .analyzer.image_analyzer import ImageAnalyzer
 from .analyzer.content_analyzer import ContentAnalyzer
-from .reporter.console_reporter import ConsoleReporter
-from .reporter.html_reporter import HTMLReporter
-from .reporter.json_reporter import JSONReporter
-from .reporter.markdown_reporter import MarkdownReporter
+from .analyzer.website_categorizer import WebsiteCategorizer
+from .reporter.console.reporter import ConsoleReporter
+from .reporter.html.reporter import HTMLReporter
+from .reporter.json.reporter import JSONReporter
+from .reporter.markdown.reporter import MarkdownReporter
 from .core.types import ScanResult, PageData
 
 console = Console()
@@ -69,6 +70,7 @@ def main():
     image_analyzer = ImageAnalyzer(config)
     content_analyzer = ContentAnalyzer(config)
     detector = DarkPatternDetector(config)
+    categorizer = WebsiteCategorizer()
 
     # Process each page
     processed_pages = []
@@ -77,9 +79,14 @@ def main():
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
         task = progress.add_task("Analyzing pages...", total=len(results))
         for page in results:
+            # Categorize website
+            page.category = categorizer.categorize(page)
+            
             # Run analyses
             if hasattr(page, 'cookies'):
                 page.cookie_access_analysis = cookie_analyzer.analyze(page)
+                page.tracking_access = cookie_analyzer.get_tracking_domains_with_access(page)
+                page.privacy_assessment = cookie_analyzer.get_privacy_impact_assessment(page)
 
             if hasattr(page, 'images'):
                 page.image_analysis = image_analyzer.analyze(page)
