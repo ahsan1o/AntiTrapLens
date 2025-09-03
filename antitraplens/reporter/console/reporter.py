@@ -5,8 +5,9 @@ Console reporter for AntiTrapLens.
 from typing import Dict, Any
 from rich.console import Console
 from rich.table import Table
-from ..core.types import ScanResult
-from .base import BaseReporter
+from ...core.types import ScanResult
+from ..base import BaseReporter
+from ..common import DataConverter
 
 class ConsoleReporter(BaseReporter):
     """Console-based report generator."""
@@ -71,14 +72,7 @@ class ConsoleReporter(BaseReporter):
             table.add_column("Count", style="magenta")
             table.add_column("Severity", style="red")
 
-            pattern_counts = {}
-            for page in pages:
-                if hasattr(page, 'dark_patterns'):
-                    for finding in page.dark_patterns.findings:
-                        key = finding.pattern
-                        if key not in pattern_counts:
-                            pattern_counts[key] = {'count': 0, 'severity': finding.severity}
-                        pattern_counts[key]['count'] += 1
+            pattern_counts = DataConverter.get_pattern_summary(pages)
 
             for pattern, data in sorted(pattern_counts.items(), key=lambda x: x[1]['count'], reverse=True):
                 table.add_row(pattern, str(data['count']), data['severity'])

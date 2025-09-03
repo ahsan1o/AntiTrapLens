@@ -1,34 +1,15 @@
 """
-JSON reporter for AntiTrapLens.
+Common data conversion utilities for reporters.
 """
 
-import json
-from pathlib import Path
-from typing import Dict, Any
-from ..core.types import ScanResult
-from .base import BaseReporter
+from typing import Dict, Any, List
+from ...core.types import ScanResult
 
-class JSONReporter(BaseReporter):
-    """JSON-based report generator."""
+class DataConverter:
+    """Common data conversion utilities."""
 
-    def __init__(self, config=None):
-        super().__init__(config)
-
-    def generate(self, scan_result: ScanResult, output_path: str = None) -> str:
-        """Generate JSON report."""
-        if output_path is None:
-            output_path = "antitraplens_report.json"
-
-        # Convert scan result to dictionary
-        report_data = self._scan_result_to_dict(scan_result)
-
-        # Write to file with pretty printing
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
-
-        return f"JSON report saved to {output_path}"
-
-    def _scan_result_to_dict(self, scan_result: ScanResult) -> Dict[str, Any]:
+    @staticmethod
+    def scan_result_to_dict(scan_result: ScanResult) -> Dict[str, Any]:
         """Convert ScanResult to dictionary."""
         return {
             "metadata": {
@@ -38,10 +19,11 @@ class JSONReporter(BaseReporter):
                 "format": "json"
             },
             "scan_info": scan_result.scan_info,
-            "pages": [self._page_to_dict(page) for page in scan_result.pages]
+            "pages": [DataConverter._page_to_dict(page) for page in scan_result.pages]
         }
 
-    def _page_to_dict(self, page) -> Dict[str, Any]:
+    @staticmethod
+    def _page_to_dict(page) -> Dict[str, Any]:
         """Convert PageData to dictionary."""
         page_dict = {
             "url": page.url,
@@ -55,7 +37,7 @@ class JSONReporter(BaseReporter):
             page_dict["cookies"] = {
                 "total": len(page.cookies),
                 "third_party": len([c for c in page.cookies if c.is_third_party]),
-                "details": [self._cookie_to_dict(c) for c in page.cookies]
+                "details": [DataConverter._cookie_to_dict(c) for c in page.cookies]
             }
 
         # Add cookie access analysis
@@ -65,7 +47,7 @@ class JSONReporter(BaseReporter):
         # Add dark patterns
         if hasattr(page, 'dark_patterns'):
             page_dict["dark_patterns"] = {
-                "findings": [self._finding_to_dict(f) for f in page.dark_patterns.findings],
+                "findings": [DataConverter._finding_to_dict(f) for f in page.dark_patterns.findings],
                 "score": page.dark_patterns.score
             }
 
@@ -75,7 +57,8 @@ class JSONReporter(BaseReporter):
 
         return page_dict
 
-    def _cookie_to_dict(self, cookie) -> Dict[str, Any]:
+    @staticmethod
+    def _cookie_to_dict(cookie) -> Dict[str, Any]:
         """Convert CookieData to dictionary."""
         return {
             "name": cookie.name,
@@ -90,7 +73,8 @@ class JSONReporter(BaseReporter):
             "category": getattr(cookie, 'category', 'Unknown')
         }
 
-    def _finding_to_dict(self, finding) -> Dict[str, Any]:
+    @staticmethod
+    def _finding_to_dict(finding) -> Dict[str, Any]:
         """Convert Finding to dictionary."""
         return {
             "pattern": finding.pattern,
@@ -101,6 +85,27 @@ class JSONReporter(BaseReporter):
             "evidence": getattr(finding, 'evidence', [])
         }
 
-    def get_format(self) -> str:
-        """Get report format."""
-        return "json"
+    @staticmethod
+    def get_pattern_summary(pages) -> Dict[str, Dict[str, Any]]:
+        """Get summary of patterns found across all pages."""
+        pattern_counts = {}
+        for page in pages:
+            if hasattr(page, 'dark_patterns'):
+                for finding in page.dark_patterns.findings:
+                    key = finding.pattern
+                    if key not in pattern_counts:
+                        pattern_counts[key] = {'count': 0, 'severity': finding.severity}
+                    pattern_counts[key]['count'] += 1
+        return pattern_counts
+
+    @staticmethod
+    def get_severity_counts(pages) -> Dict[str, int]:
+        """Get counts of findings by severity."""
+        counts = {'high': 0, 'medium': 0, 'low': 0}
+        for page in pages:
+            if hasattr(page, 'dark_patterns'):
+                for finding in page.dark_patterns.findings:
+                    severity = finding.severity.lower()
+                    if severity in counts:
+                        counts[severity] += 1
+        return counts
