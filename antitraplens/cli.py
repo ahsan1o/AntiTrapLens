@@ -7,6 +7,7 @@ import argparse
 import sys
 import os
 from antitraplens.scraper.crawler import WebCrawler, save_to_json
+from antitraplens.detector import DarkPatternDetector
 
 def main():
     parser = argparse.ArgumentParser(description="AntiTrapLens: Scan websites for dark patterns.")
@@ -30,20 +31,35 @@ def main():
         print("No data collected.")
         sys.exit(1)
 
+    # Run detection on each page
+    detector = DarkPatternDetector()
+    all_findings = []
+    for page in results:
+        findings = detector.detect(page)
+        page['dark_patterns'] = findings
+        all_findings.extend(findings)
+
     # Save all results
     output_data = {
         'scan_info': {
             'start_url': args.url,
             'depth': args.depth,
             'max_pages': args.max_pages,
-            'pages_scanned': len(results)
+            'pages_scanned': len(results),
+            'total_findings': len(all_findings)
         },
         'pages': results
     }
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     save_to_json(output_data, args.output)
-    print(f"Scan complete. {len(results)} pages scanned. Data saved to {args.output}")
+    print(f"Scan complete. {len(results)} pages scanned. {len(all_findings)} dark patterns found. Data saved to {args.output}")
+    if all_findings:
+        print("Findings:")
+        for finding in all_findings[:5]:  # Show first 5
+            print(f"- {finding['pattern']}: {finding['description']} (Severity: {finding['severity']})")
+        if len(all_findings) > 5:
+            print(f"... and {len(all_findings) - 5} more.")
     if args.depth == 1 and results:
         print(f"Title: {results[0].get('title', 'N/A')}")
         print(f"Popups detected: {len(results[0].get('popups', []))}")
