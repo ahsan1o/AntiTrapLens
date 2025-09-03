@@ -4,6 +4,10 @@ Detection rules for dark patterns in AntiTrapLens.
 
 from typing import List, Dict, Any
 import re
+from bs4 import BeautifulSoup
+import spacy
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 class DarkPatternDetector:
     def __init__(self):
@@ -15,7 +19,16 @@ class DarkPatternDetector:
             self.detect_forced_popups,
             self.detect_countdown_timers,
             self.detect_endless_scroll,
+            self.detect_hidden_costs,
+            self.detect_fake_reviews,
+            self.detect_subscription_traps,
+            self.detect_privacy_policy_issues,
+            self.detect_aggressive_ads,
+            self.detect_data_collection,
+            self.detect_accessibility_issues,
         ]
+        self.nlp = spacy.load('en_core_web_sm')
+        self.vectorizer = TfidfVectorizer()
 
     def detect(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -24,7 +37,13 @@ class DarkPatternDetector:
         findings = []
         for rule in self.rules:
             findings.extend(rule(page_data))
-        return findings
+        # Add NLP detection
+        findings.extend(self.detect_nlp_misleading_text(page_data))
+        score = self.calculate_score(findings)
+        return {
+            'findings': findings,
+            'score': score
+        }
 
     def detect_pre_ticked_checkboxes(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         findings = []
@@ -124,3 +143,130 @@ class DarkPatternDetector:
                 'evidence': "JS scripts or HTML mention scroll/load"
             })
         return findings
+
+    def detect_hidden_costs(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        html = page_data.get('html', '').lower()
+        if re.search(r'\bshipping\b.*\bfree\b', html) and re.search(r'\$\d+', html):
+            findings.append({
+                'pattern': 'hidden_costs',
+                'severity': 'high',
+                'description': "Potential hidden costs detected (e.g., shipping fees).",
+                'evidence': "HTML mentions 'free shipping' and prices"
+            })
+        return findings
+
+    def detect_fake_reviews(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        html = page_data.get('html', '').lower()
+        if 'review' in html and re.search(r'\b5\s*star\b', html):
+            findings.append({
+                'pattern': 'fake_reviews',
+                'severity': 'medium',
+                'description': "Potential fake reviews or exaggerated ratings.",
+                'evidence': "HTML contains reviews and high ratings"
+            })
+        return findings
+
+    def detect_subscription_traps(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        buttons = page_data.get('buttons', [])
+        for btn in buttons:
+            text = btn.get('text', '').lower()
+            if 'free' in text and ('trial' in text or 'subscribe' in text):
+                findings.append({
+                    'pattern': 'subscription_trap',
+                    'severity': 'high',
+                    'description': f"Potential subscription trap: '{btn.get('text')}'",
+                    'element': btn
+                })
+        return findings
+
+    def detect_privacy_policy_issues(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        html = page_data.get('html', '').lower()
+        if 'privacy' in html and len(html) > 100000:  # Large pages might bury policy
+            findings.append({
+                'pattern': 'privacy_buried',
+                'severity': 'low',
+                'description': "Privacy policy might be buried in long page.",
+                'evidence': "Large HTML with 'privacy' mention"
+            })
+        return findings
+
+    def detect_aggressive_ads(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        html = page_data.get('html', '').lower()
+        if 'popup' in html or 'overlay' in html:
+            findings.append({
+                'pattern': 'aggressive_ads',
+                'severity': 'medium',
+                'description': "Aggressive ads or overlays detected.",
+                'evidence': "HTML contains popup/overlay mentions"
+            })
+        return findings
+
+    def detect_data_collection(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        js_scripts = page_data.get('js_scripts', [])
+        if any('analytics' in js.lower() or 'tracking' in js.lower() for js in js_scripts):
+            findings.append({
+                'pattern': 'data_collection',
+                'severity': 'low',
+                'description': "Potential extensive data collection via tracking scripts.",
+                'evidence': f"JS scripts: {[js for js in js_scripts if 'analytics' in js.lower()]}"
+            })
+        return findings
+
+    def detect_accessibility_issues(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        html = page_data.get('html', '')
+        soup = BeautifulSoup(html, 'lxml')
+        images = soup.find_all('img')
+        missing_alt = [img for img in images if not img.get('alt')]
+        if len(missing_alt) > len(images) * 0.5:
+            findings.append({
+                'pattern': 'accessibility_issues',
+                'severity': 'low',
+                'description': f"Many images missing alt text: {len(missing_alt)}/{len(images)}",
+                'evidence': "Accessibility concern for screen readers"
+            })
+        return findings
+
+    def detect_nlp_misleading_text(self, page_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        buttons = page_data.get('buttons', [])
+        for btn in buttons:
+            text = btn.get('text', '').strip()
+            if text:
+                doc = self.nlp(text.lower())
+                # Simple heuristic: check for negation + positive words
+                neg_words = ['cancel', 'no', 'stop', 'close']
+                pos_words = ['subscribe', 'join', 'yes', 'continue', 'accept']
+                has_neg = any(token.lemma_ in neg_words for token in doc)
+                has_pos = any(token.lemma_ in pos_words for token in doc)
+                if has_neg and has_pos:
+                    findings.append({
+                        'pattern': 'nlp_misleading_text',
+                        'severity': 'high',
+                        'description': f"NLP-detected misleading text: '{text}'",
+                        'element': btn,
+                        'nlp_analysis': f"Contains negation ({has_neg}) and positive action ({has_pos})"
+                    })
+        return findings
+
+    def calculate_score(self, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        severity_weights = {'high': 10, 'medium': 5, 'low': 2}
+        total_score = sum(severity_weights.get(f['severity'], 0) for f in findings)
+        max_score = 100
+        normalized_score = min(total_score, max_score)
+        grade = 'A' if normalized_score < 20 else 'B' if normalized_score < 40 else 'C' if normalized_score < 60 else 'D' if normalized_score < 80 else 'F'
+        return {
+            'total_score': normalized_score,
+            'grade': grade,
+            'breakdown': {
+                'high': len([f for f in findings if f['severity'] == 'high']),
+                'medium': len([f for f in findings if f['severity'] == 'medium']),
+                'low': len([f for f in findings if f['severity'] == 'low'])
+            }
+        }
