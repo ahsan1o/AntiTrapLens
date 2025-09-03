@@ -173,7 +173,7 @@ class WebCrawler:
             if 'error' not in page_data:
                 # Categorize website and add to data
                 data = page_data
-                data['category'] = self.categorize_website(data)
+                data['category'] = categorize_website(data)
                 data['url'] = current_url
                 data['status'] = 'success'
                 results.append(data)
@@ -193,7 +193,7 @@ class WebCrawler:
 
         return results
 
-    def categorize_website(self, page_data: Dict[str, Any]) -> str:
+def categorize_website(page_data: Dict[str, Any]) -> str:
         """
         Categorize the website based on content analysis.
         """
@@ -204,14 +204,12 @@ class WebCrawler:
                 meta_desc = meta.get('content', '').lower()
                 break
         html = page_data.get('html', '').lower()
-        links = ' '.join(page_data.get('links', [])).lower()  # Include links for keywords
 
-        text = f"{title} {meta_desc} {html} {links}"
-
+        # Keywords for categories
         categories = {
             'ecommerce': ['shop', 'buy', 'cart', 'product', 'store', 'price'],
-            'adult': ['adult', 'porn', 'sex', 'xxx', 'jav', '18+', 'nude', 'genre/jav'],
-            'streaming': ['watch', 'movie', 'series', 'stream', 'video', 'tv', 'download', 'hd'],
+            'adult': ['adult', 'porn', 'sex', 'xxx', 'jav', '18+', 'nude'],
+            'streaming': ['watch', 'movie', 'series', 'stream', 'video', 'tv'],
             'news': ['news', 'article', 'blog', 'politics', 'sports'],
             'social': ['social', 'community', 'forum', 'chat'],
             'educational': ['learn', 'course', 'tutorial', 'education'],
@@ -222,21 +220,11 @@ class WebCrawler:
         for cat, keywords in categories.items():
             score = 0
             for kw in keywords:
-                if kw in text:
+                if kw in title or kw in meta_desc or kw in html:
                     score += 1
             scores[cat] = score
 
-        # Debug: print scores
-        print(f"Debug - Title: {title}")
-        print(f"Debug - Meta: {meta_desc}")
-        print(f"Debug - Links sample: {links[:200]}")
-        print(f"Debug - Scores: {scores}")
-        print(f"Debug - Best: {best_cat} with {scores[best_cat]}")
-
-        # Special check for adult content
-        if any('jav' in link for link in page_data.get('links', [])) or '18+' in text or 'adult' in text:
-            return 'Adult'
-
+        # Return category with highest score
         best_cat = max(scores, key=scores.get)
         if scores[best_cat] > 0:
             return best_cat.capitalize()
