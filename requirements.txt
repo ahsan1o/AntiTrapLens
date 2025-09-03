@@ -6,3 +6,4 @@ lxml
 spacy
 scikit-learn
 pytest
+Pillow

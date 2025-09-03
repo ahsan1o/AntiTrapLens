@@ -1,5 +1,18 @@
-# Reporter module
+"""
+Reporter module for AntiTrapLens.
+Provides various report formats for scan results.
+"""
 
-from .generator import ReportGenerator
+from .base import BaseReporter
+from .console_reporter import ConsoleReporter
+from .html_reporter import HTMLReporter
+from .json_reporter import JSONReporter
+from .markdown_reporter import MarkdownReporter
 
-__all__ = ['ReportGenerator']
+__all__ = [
+    'BaseReporter',
+    'ConsoleReporter',
+    'HTMLReporter',
+    'JSONReporter',
+    'MarkdownReporter'
+]

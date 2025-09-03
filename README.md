@@ -14,18 +14,19 @@
 
 ---
 
-</div>
-
 ## ✨ What is AntiTrapLens?
 
 🕵️‍♂️ **AntiTrapLens** is your digital detective that uncovers hidden manipulation tactics on websites. Using cutting-edge AI and web scraping technology, it detects "dark patterns" - those sneaky design tricks that trick users into unwanted actions.
 
 ### 🎯 Key Highlights
-- **🤖 AI-Powered Detection**: 14+ sophisticated rules with NLP analysis
-- **🌐 Comprehensive Crawling**: Headless browser that bypasses anti-bot protections
-- **📈 Smart Scoring**: Grades websites A-F based on darkness level
-- **🎨 Beautiful Reports**: Interactive HTML reports with modern UI
-- **⚡ Fast & Reliable**: Optimized for speed with robust error handling
+- **🤖 AI-Powered Detection**: 16+ sophisticated rules with NLP analysis
+- **🌐 Advanced Crawling**: Headless browser that bypasses anti-bot protections with realistic browser fingerprints
+- **🍪 Comprehensive Cookie Analysis**: Detects hidden cookies, third-party tracking, and privacy implications
+- **🖼️ Smart Image Classification**: Categorizes websites (e-commerce, social media, adult, etc.) using image analysis
+- **📈 Intelligent Scoring**: Grades websites A-F based on darkness level with detailed breakdowns
+- **🎨 Premium HTML Reports**: Interactive reports with modern design, varied layouts, and visual depth
+- **⚡ Fast & Reliable**: Optimized for speed with robust error handling and retry logic
+- **🏗️ Modular Architecture**: Clean, maintainable codebase with separate concerns
 
 ## 🚀 Quick Start
 
@@ -62,22 +63,33 @@ This will scan a sample website and show you the full output!
 ╭─────────────────────────────────────╮
 │ AntiTrapLens - Dark Pattern Scanner │
 ╰─────────────────────────────────────╮
-Scanning https://example.com with depth 1, timeout 30000ms
-  Analyzing pages for dark patterns...
-JSON report saved to reports/scan_result.json
-         Scan Summary
+  Analyzing pages...
+HTML report saved to reports/amazon_scan.html
+         Scan Summary          
 ┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
 ┃ Metric              ┃ Value ┃
 ┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
 │ Pages Scanned       │ 1     │
-│ Dark Patterns Found │ 0     │
+│ Dark Patterns Found │ 7     │
 │ Scan Depth          │ 1     │
 └─────────────────────┴───────┘
-No dark patterns detected!
+
+Top Findings:
+• endless_scroll (low): Potential endless scroll or auto-load detected.
+• privacy_buried (low): Privacy policy might be buried in long page.
+• aggressive_ads (medium): Aggressive ads or overlays detected.
+• cookie_consent_banner (low): Cookie consent banner detected - review what data sharing is allowed.
+• third_party_tracking (high): Third-party tracking detected from 30 domains
+... and 2 more.
 ```
 
-### HTML Report Preview
-![HTML Report](https://via.placeholder.com/800x400/4CAF50/FFFFFF?text=Interactive+HTML+Report+Preview)
+### HTML Report Features
+- 🎨 **Modern Design**: Clean white/black color scheme with visual depth
+- 📊 **Interactive Cards**: Varied heights and hover effects
+- 📈 **Hero Section**: Prominent stats and branding
+- 🔍 **Detailed Analysis**: Cookie analysis, image classification, and pattern detection
+- 📱 **Responsive**: Works perfectly on mobile and desktop
+- 🎯 **Visual Hierarchy**: Clear information architecture
 
 ## 🔧 Installation
 
@@ -115,7 +127,7 @@ No dark patterns detected!
    playwright install
    ```
 
-5. **Download SpaCy model**
+5. **Download SpaCy model (optional, for enhanced NLP)**
    ```bash
    python -m spacy download en_core_web_sm
    ```
@@ -124,6 +136,11 @@ No dark patterns detected!
    ```bash
    python main.py --version
    ```
+
+### Dependencies Overview
+- **Core**: `playwright`, `beautifulsoup4`, `rich`
+- **Analysis**: `spacy` (optional), `dataclasses`
+- **Development**: `pytest`, `black`, `flake8`
 
 ## 📖 Usage
 
@@ -134,7 +151,7 @@ No dark patterns detected!
 python main.py https://example.com
 
 # Deep crawl with HTML report
-python main.py https://example.com --depth 3 --report-format html
+python main.py https://example.com --depth 2 --report-format html --report-file analysis.html
 
 # Verbose mode with progress
 python main.py https://example.com --verbose --depth 2
@@ -151,8 +168,9 @@ python main.py https://example.com --output my_scan.json --report-format json
 | `--max-pages` | Maximum pages to crawl | 10 |
 | `--timeout` | Page load timeout (ms) | 30000 |
 | `--report-format` | Output format (json/markdown/html/console) | json |
+| `--report-file` | Output file for report | auto-generated |
 | `--verbose` | Show detailed progress | false |
-| `--output` | Output file path | reports/scan_result.json |
+| `--version` | Show version information | - |
 
 ### Example: Complete Analysis
 
@@ -168,6 +186,8 @@ python main.py https://suspicious-site.com \
 This will:
 - 🔍 Crawl 2 levels deep (up to 20 pages)
 - 🤖 Analyze each page for dark patterns
+- 🍪 Perform comprehensive cookie analysis
+- 🖼️ Classify content using image analysis
 - 📊 Generate an interactive HTML report
 - 📝 Show detailed progress in terminal
 
@@ -176,23 +196,46 @@ This will:
 ```
 AntiTrapLens/
 ├── 📁 antitraplens/          # Main package
+│   ├── core/                 # Core functionality 🧠
+│   │   ├── __init__.py
+│   │   ├── config.py         # Configuration management
+│   │   └── types.py          # Data type definitions
+│   ├── crawler/              # Web crawling module 🕷️
+│   │   ├── __init__.py
+│   │   ├── playwright_crawler.py # Advanced crawler with anti-bot
+│   │   ├── base.py           # Base crawler interface
+│   │   └── data_extractor.py # HTML data extraction
+│   ├── detector/             # Detection engine 🎯
+│   │   ├── __init__.py
+│   │   ├── engine.py         # Main detection orchestrator
+│   │   ├── base.py           # Base detector interface
+│   │   └── rules/            # Detection rules
+│   │       ├── __init__.py
+│   │       ├── dark_patterns.py # Dark pattern rules
+│   │       └── cookie_analysis.py # Cookie analysis rules
+│   ├── analyzer/             # Content analysis 📊
+│   │   ├── __init__.py
+│   │   ├── cookie_analyzer.py # Cookie privacy analysis
+│   │   ├── image_analyzer.py # Image content analysis
+│   │   └── content_analyzer.py # Combined content analysis
+│   ├── reporter/             # Report generation 📊
+│   │   ├── __init__.py
+│   │   ├── base.py           # Base reporter interface
+│   │   ├── html_reporter.py  # Premium HTML reports
+│   │   ├── json_reporter.py  # JSON output
+│   │   ├── markdown_reporter.py # Markdown reports
+│   │   └── console_reporter.py # Terminal output
 │   ├── cli.py               # Command-line interface 🖥️
-│   ├── scraper/             # Web crawling module 🕷️
-│   │   ├── crawler.py       # Core crawler with anti-bot
-│   │   └── __init__.py
-│   ├── detector/            # Detection engine 🧠
-│   │   ├── rules.py         # 14+ detection rules + NLP
-│   │   └── __init__.py
-│   └── reporter/            # Report generation 📊
-│       ├── generator.py     # Multi-format report generator
+│   └── utils/                # Utility functions 🛠️
 │       └── __init__.py
 ├── 📁 tests/                 # Unit tests (12 tests) 🧪
-│   ├── test_scraper.py
+│   ├── __init__.py
 │   ├── test_detector.py
-│   └── test_reporter.py
+│   ├── test_reporter.py
+│   └── test_scraper.py
 ├── 📁 reports/               # Generated reports 📁
 ├── 📁 docs/                  # Documentation 📚
-├── 📁 .github/               # GitHub templates 🤝
+├── 📁 scripts/               # Utility scripts
 ├── main.py                  # Entry point 🚀
 ├── demo.py                  # Quick demo script 🎮
 ├── requirements.txt         # Dependencies 📦
@@ -205,25 +248,31 @@ AntiTrapLens/
 
 ## 🎯 Detection Rules
 
-AntiTrapLens detects **14+ types** of dark patterns:
+AntiTrapLens detects **16+ types** of dark patterns:
 
 ### 🚨 High Severity
 - ❌ **Pre-ticked checkboxes** - Sneaky opt-ins
 - 🎭 **Misleading buttons** - NLP detects confusing text
 - ⏰ **Countdown timers** - Fake urgency
 - 💰 **Hidden costs** - Surprise fees
+- 🍪 **Third-party tracking** - Cross-site data collection
+- 📊 **Excessive cookies** - Too many non-essential cookies
 
 ### ⚠️ Medium Severity
 - 📧 **Subscription traps** - Hard to unsubscribe
 - 📰 **Fake reviews** - Manufactured testimonials
 - 🔒 **Privacy policy issues** - Data collection without consent
 - 📢 **Aggressive ads** - Intrusive advertising
+- 📊 **Tracking scripts** - External monitoring systems
+- 🎪 **Forced popups** - Modal abuse
 
 ### ℹ️ Low Severity
 - 🔄 **Endless scroll** - Infinite content loading
 - ♿ **Accessibility issues** - Poor UX design
 - 📊 **Data collection** - Excessive tracking
-- 🎪 **Forced popups** - Modal abuse
+- 🍪 **Cookie consent banners** - Privacy notices
+- 📧 **Hidden unsubscribe** - Buried cancellation options
+- 🏗️ **Overloaded consent** - Too many accept options
 
 ## 📈 Scoring System
 
@@ -243,38 +292,46 @@ AntiTrapLens is perfect for:
 
 ### 🔍 **Digital Privacy Advocates**
 - Audit websites for user manipulation tactics
-- Generate reports for consumer protection agencies
-- Monitor e-commerce sites for dark patterns
+- Generate comprehensive reports for consumer protection agencies
+- Monitor e-commerce sites for dark patterns and privacy violations
 
 ### 🏢 **UX Researchers & Designers**
 - Analyze competitor websites for UX best practices
-- Identify problematic design patterns
-- Benchmark websites against ethical standards
+- Identify problematic design patterns and accessibility issues
+- Benchmark websites against ethical design standards
 
 ### 🛡️ **Security Professionals**
 - Detect phishing attempts and scam websites
-- Monitor for data collection violations
-- Assess website trustworthiness
+- Monitor for data collection violations and tracking abuse
+- Assess website trustworthiness and security posture
 
 ### 📊 **Data Scientists & Analysts**
 - Study prevalence of dark patterns across industries
-- Analyze user manipulation trends
-- Generate insights for regulatory bodies
+- Analyze user manipulation trends and patterns
+- Generate insights for regulatory bodies and research
 
 ### 🎓 **Students & Educators**
-- Learn about ethical web design
+- Learn about ethical web design and dark patterns
 - Study real-world UX manipulation techniques
 - Teach digital literacy and consumer awareness
 
-### 💼 **Business Owners**
+### 💼 **Business Owners & Marketers**
 - Ensure your website follows ethical design practices
 - Avoid legal issues with consumer protection laws
 - Build trust with transparent user experiences
+- Optimize conversion funnels ethically
 
-### 🌐 **Web Developers**
-- Test your websites for unintended dark patterns
-- Improve user experience and conversion ethics
+### 🌐 **Web Developers & QA Teams**
+- Test websites for unintended dark patterns
+- Improve user experience and accessibility
 - Stay compliant with emerging UX regulations
+- Perform automated quality assurance
+
+### 🏛️ **Regulatory Bodies & NGOs**
+- Monitor websites for compliance with consumer protection laws
+- Generate evidence for legal proceedings
+- Support consumer advocacy initiatives
+- Track industry-wide dark pattern trends
 
 ## 🧪 Testing
 
@@ -322,18 +379,31 @@ pip install -r requirements-dev.txt  # For development
 
 ## 📋 Roadmap
 
-### 🚀 Upcoming Features
-- [ ] **Browser Extension** - Chrome/Firefox extension
-- [ ] **API Integration** - REST API for integrations
-- [ ] **Database Storage** - Persistent scan history
-- [ ] **Real-time Monitoring** - Continuous website watching
-- [ ] **Machine Learning** - Advanced pattern recognition
-- [ ] **Multi-language Support** - International websites
+### ✅ **Current Version (v1.0.0)**
+- **Modular Architecture**: Clean separation of concerns
+- **Advanced Detection**: 16+ dark pattern rules
+- **Premium HTML Reports**: Modern design with visual depth
+- **Comprehensive Analysis**: Cookie, image, and content analysis
+- **Robust CLI**: Full-featured command-line interface
+- **Configuration Management**: Centralized settings
+- **Type Safety**: Full type annotations
 
-### 📊 Version History
-- **v1.0.0** - Initial release with core features
-- **v0.9.0** - Beta with testing framework
-- **v0.8.0** - Alpha with basic functionality
+### 🚀 **Upcoming Features**
+- [ ] **Browser Extension** - Chrome/Firefox extension for real-time detection
+- [ ] **API Integration** - REST API for third-party integrations
+- [ ] **Database Storage** - Persistent scan history and analytics
+- [ ] **Real-time Monitoring** - Continuous website watching
+- [ ] **Machine Learning** - Advanced pattern recognition with ML models
+- [ ] **Multi-language Support** - International websites and localization
+- [ ] **Batch Processing** - Scan multiple websites simultaneously
+- [ ] **Export Options** - PDF reports and data visualization
+- [ ] **Plugin System** - Extensible detection rules
+- [ ] **Web Dashboard** - Web-based interface for analysis
+
+### 📊 **Version History**
+- **v1.0.0** - Complete modular rewrite with premium HTML reports
+- **v0.9.0** - Beta with testing framework and basic functionality
+- **v0.8.0** - Alpha with core detection capabilities
 
 ## 🛠️ Technologies Used
 
@@ -344,8 +414,16 @@ AntiTrapLens is built with modern, battle-tested technologies:
 - **🎭 Playwright** - Next-gen browser automation by Microsoft
 - **🧠 SpaCy** - Industrial-strength NLP processing
 - **🍜 BeautifulSoup** - Robust HTML parsing
-- **📊 scikit-learn** - Machine learning capabilities
+- **📊 dataclasses** - Clean data structure definitions
 - **🎨 Rich** - Beautiful terminal output
+- **🔧 argparse** - Command-line argument parsing
+
+### Architecture
+- **🏗️ Modular Design** - Separated concerns with clear interfaces
+- **📦 Abstract Base Classes** - Extensible plugin architecture
+- **⚙️ Configuration Management** - Centralized settings with nested configs
+- **🔄 Context Managers** - Proper resource management
+- **📝 Type Hints** - Full type annotation for better code quality
 
 ### Development Tools
 - **🧪 pytest** - Comprehensive testing framework
@@ -360,6 +438,7 @@ AntiTrapLens is built with modern, battle-tested technologies:
 - **Security**: Safe dependencies with no known vulnerabilities
 - **Scalability**: Designed to handle large-scale web crawling
 - **Extensibility**: Easy to add new detection rules and features
+- **Maintainability**: Clean, modular architecture for long-term development
 
 ## 📄 License
 
@@ -375,9 +454,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ## 📞 Contact
 
 **Ahsan Malik**
-- 📧 Email: [your-email@example.com](mailto:ahsanmalik919@gmail.com)
+- 📧 Email: [ahsanmalik919@gmail.com](mailto:ahsanmalik919@gmail.com)
 - 🐙 GitHub: [@ahsan1o](https://github.com/ahsan1o)
-- 💼 LinkedIn: [Your LinkedIn](https://linkedin.com/in/ahsan1o)
+- 💼 LinkedIn: [LinkedIn](https://linkedin.com/in/ahsan1o)
 
 
 ---
@@ -389,5 +468,21 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ⭐ **Star this repo if you found it useful!**
 
 [⬆️ Back to Top](#-antitraplens)
+
+---
+
+## 🎉 Recent Updates
+
+### v1.0.0 - Complete Modular Rewrite
+- 🏗️ **Modular Architecture**: Clean separation of core, crawler, detector, analyzer, and reporter modules
+- 🎨 **Premium HTML Reports**: Complete redesign with modern UI, visual depth, and responsive design
+- 🤖 **Enhanced Detection**: 16+ sophisticated dark pattern rules with improved accuracy
+- 🍪 **Advanced Cookie Analysis**: Comprehensive privacy and tracking detection
+- 🖼️ **Smart Classification**: Image-based content categorization
+- ⚡ **Performance**: Optimized crawling with better error handling
+- 📱 **Responsive Design**: Works perfectly on all devices
+- 🧪 **Testing**: Comprehensive test suite with 12+ passing tests
+
+*AntiTrapLens is now production-ready with enterprise-grade architecture and premium user experience!*
 
 </div>

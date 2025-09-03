@@ -10,9 +10,19 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.panel import Panel
 from rich.table import Table
-from antitraplens.scraper.crawler import WebCrawler, save_to_json
-from antitraplens.detector import DarkPatternDetector
-from antitraplens.reporter import ReportGenerator
+
+# Import from new modular structure
+from .core.config import AntiTrapLensConfig
+from .crawler.playwright_crawler import PlaywrightCrawler
+from .detector.engine import DarkPatternDetector
+from .analyzer.cookie_analyzer import CookieAnalyzer
+from .analyzer.image_analyzer import ImageAnalyzer
+from .analyzer.content_analyzer import ContentAnalyzer
+from .reporter.console_reporter import ConsoleReporter
+from .reporter.html_reporter import HTMLReporter
+from .reporter.json_reporter import JSONReporter
+from .reporter.markdown_reporter import MarkdownReporter
+from .core.types import ScanResult, PageData
 
 console = Console()
 
@@ -34,12 +44,18 @@ def main():
     if args.verbose:
         console.print(f"[dim]Scanning {args.url} with depth {args.depth}, timeout {args.timeout}ms[/dim]")
 
+    # Initialize configuration
+    config = AntiTrapLensConfig()
+    config.crawler.timeout = args.timeout
+    config.crawler.retries = 2  # Set some defaults
+    # Note: max_pages and depth are handled in the crawler methods
+
     with console.status("[bold green]Initializing crawler...") as status:
-        with WebCrawler(timeout=args.timeout) as crawler:
+        with PlaywrightCrawler(config) as crawler:
             if args.depth == 1:
                 status.update("[bold green]Crawling single page...")
-                data = crawler.crawl_page(args.url)
-                results = [data] if 'error' not in data else []
+                page_data = crawler.crawl_page(args.url)
+                results = [page_data] if page_data else []
             else:
                 status.update("[bold green]Crawling with depth...")
                 results = crawler.crawl_with_depth(args.url, max_depth=args.depth, max_pages=args.max_pages)
@@ -48,50 +64,77 @@ def main():
         console.print("[red]No data collected. Check the URL or network connection.[/red]")
         sys.exit(1)
 
-    # Run detection on each page
-    detector = DarkPatternDetector()
-    reporter = ReportGenerator()
+    # Initialize analyzers
+    cookie_analyzer = CookieAnalyzer(config)
+    image_analyzer = ImageAnalyzer(config)
+    content_analyzer = ContentAnalyzer(config)
+    detector = DarkPatternDetector(config)
+
+    # Process each page
+    processed_pages = []
     all_findings = []
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
-        task = progress.add_task("Analyzing pages for dark patterns...", total=len(results))
+        task = progress.add_task("Analyzing pages...", total=len(results))
         for page in results:
+            # Run analyses
+            if hasattr(page, 'cookies'):
+                page.cookie_access_analysis = cookie_analyzer.analyze(page)
+
+            if hasattr(page, 'images'):
+                page.image_analysis = image_analyzer.analyze(page)
+
+            page.content_analysis = content_analyzer.analyze(page)
+
+            # Detect dark patterns
             detection_result = detector.detect(page)
-            page['dark_patterns'] = detection_result
-            all_findings.extend(detection_result['findings'])
+            page.dark_patterns = detection_result
+
+            processed_pages.append(page)
+            all_findings.extend(detection_result.findings)
             progress.advance(task)
 
-    output_data = {
-        'scan_info': {
+    # Create scan result
+    scan_result = ScanResult(
+        scan_info={
             'start_url': args.url,
             'depth': args.depth,
             'max_pages': args.max_pages,
-            'pages_scanned': len(results),
-            'total_findings': len(all_findings)
+            'pages_scanned': len(processed_pages),
+            'total_findings': len(all_findings),
+            'timestamp': None  # Will be set by reporters if needed
         },
-        'pages': results
-    }
+        pages=processed_pages
+    )
 
+    # Generate report
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
+
     if args.report_format == 'json':
-        reporter.generate_json_report(output_data, args.output)
-        console.print(f"[green]JSON report saved to {args.output}[/green]")
+        reporter = JSONReporter(config)
+        report_file = args.report_file or args.output
+        result = reporter.generate(scan_result, report_file)
+        console.print(f"[green]{result}[/green]")
     elif args.report_format == 'markdown':
+        reporter = MarkdownReporter(config)
         report_file = args.report_file or args.output.replace('.json', '.md')
-        reporter.generate_markdown_report(output_data, report_file)
-        console.print(f"[green]Markdown report saved to {report_file}[/green]")
+        result = reporter.generate(scan_result, report_file)
+        console.print(f"[green]{result}[/green]")
     elif args.report_format == 'html':
+        reporter = HTMLReporter(config)
         report_file = args.report_file or args.output.replace('.json', '.html')
-        reporter.generate_html_report(output_data, report_file)
-        console.print(f"[green]HTML report saved to {report_file}[/green]")
+        result = reporter.generate(scan_result, report_file)
+        console.print(f"[green]{result}[/green]")
     elif args.report_format == 'console':
-        reporter.generate_console_report(output_data)
+        reporter = ConsoleReporter(config)
+        result = reporter.generate(scan_result)
+        console.print(f"[green]{result}[/green]")
 
     # Summary
     table = Table(title="Scan Summary")
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="magenta")
-    table.add_row("Pages Scanned", str(len(results)))
+    table.add_row("Pages Scanned", str(len(processed_pages)))
     table.add_row("Dark Patterns Found", str(len(all_findings)))
     table.add_row("Scan Depth", str(args.depth))
     console.print(table)
@@ -99,19 +142,33 @@ def main():
     if all_findings:
         console.print("\n[bold red]Top Findings:[/bold red]")
         for finding in all_findings[:5]:
-            console.print(f"• [red]{finding['pattern']}[/red] ({finding['severity']}): {finding['description']}")
+            console.print(f"• [red]{finding.pattern}[/red] ({finding.severity}): {finding.description}")
         if len(all_findings) > 5:
             console.print(f"[dim]... and {len(all_findings) - 5} more.[/dim]")
     else:
         console.print("[green]No dark patterns detected![/green]")
 
-    if args.verbose and args.depth == 1 and results:
-        page = results[0]
+    if args.verbose and args.depth == 1 and processed_pages:
+        page = processed_pages[0]
         console.print(f"\n[bold]Page Details:[/bold]")
-        console.print(f"Title: {page.get('title', 'N/A')}")
-        console.print(f"Popups: {len(page.get('popups', []))}")
-        console.print(f"Forms: {len(page.get('forms', []))}")
-        console.print(f"Links: {len(page.get('links', []))}")
+        console.print(f"Title: {getattr(page, 'title', 'N/A')}")
+        console.print(f"Popups: {len(getattr(page, 'popups', []))}")
+        console.print(f"Forms: {len(getattr(page, 'forms', []))}")
+        console.print(f"Links: {len(getattr(page, 'links', []))}")
+        console.print(f"Images: {len(getattr(page, 'images', []))}")
+        console.print(f"Cookies: {len(getattr(page, 'cookies', []))}")
+
+        # Display cookie analysis
+        if hasattr(page, 'cookie_access_analysis'):
+            analysis = page.cookie_access_analysis
+            if analysis.get('data_collection'):
+                console.print(f"[yellow]Data Collection: {', '.join(analysis['data_collection'])}[/yellow]")
+            if analysis.get('third_party_access'):
+                console.print(f"[red]Third-party Access: {len(analysis['third_party_access'])} domains[/red]")
+            if analysis.get('tracking_capabilities'):
+                console.print(f"[red]Tracking: {len(analysis['tracking_capabilities'])} systems[/red]")
+            if analysis.get('privacy_concerns'):
+                console.print(f"[red]Privacy Concerns: {len(analysis['privacy_concerns'])}[/red]")
 
 if __name__ == "__main__":
     main()

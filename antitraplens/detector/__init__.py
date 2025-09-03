@@ -1,5 +1,8 @@
 # Detector module
 
-from .rules import DarkPatternDetector
+from .base import BaseDetector
+from .engine import DarkPatternDetector
+from .rules.dark_patterns import DarkPatternRules
+from .rules.cookie_analysis import CookieAnalysisRules
 
-__all__ = ['DarkPatternDetector']
+__all__ = ['BaseDetector', 'DarkPatternDetector', 'DarkPatternRules', 'CookieAnalysisRules']
