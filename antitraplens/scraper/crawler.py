@@ -119,6 +119,41 @@ class WebCrawler:
             logger.error(f"Error crawling {url}: {e}")
             return {'url': url, 'error': str(e)}
 
+    def crawl_with_depth(self, start_url: str, max_depth: int = 1, max_pages: int = 10) -> List[Dict[str, Any]]:
+        """
+        Crawl the website starting from start_url up to max_depth, collecting data from each page.
+        """
+        from urllib.parse import urljoin, urlparse
+        from collections import deque
+
+        base_domain = urlparse(start_url).netloc
+        visited = set()
+        queue = deque([(start_url, 0)])  # (url, depth)
+        results = []
+
+        while queue and len(results) < max_pages:
+            current_url, depth = queue.popleft()
+            if current_url in visited or depth > max_depth:
+                continue
+            visited.add(current_url)
+
+            print(f"Crawling: {current_url} (depth {depth})")
+            page_data = self.crawl_page(current_url)
+            if 'error' not in page_data:
+                results.append(page_data)
+
+                if depth < max_depth:
+                    # Extract internal links
+                    soup = BeautifulSoup(page_data.get('html', ''), 'lxml')
+                    links = soup.find_all('a', href=True)
+                    for link in links:
+                        href = link['href']
+                        full_url = urljoin(current_url, href)
+                        if urlparse(full_url).netloc == base_domain and full_url not in visited:
+                            queue.append((full_url, depth + 1))
+
+        return results
+
 def save_to_json(data: Dict[str, Any], filename: str):
     """
     Save extracted data to a JSON file.
